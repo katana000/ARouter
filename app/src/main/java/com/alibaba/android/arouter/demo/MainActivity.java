@@ -5,11 +5,14 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.RequiresApi;
 import android.support.v4.app.ActivityOptionsCompat;
 import android.support.v4.app.Fragment;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewTreeObserver;
+import android.widget.Button;
 import android.widget.Toast;
 
 import com.alibaba.android.arouter.demo.testinject.TestObj;
@@ -24,12 +27,30 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private static Activity activity;
 
+
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
         activity = this;
+
+        final Button test = (Button) findViewById(R.id.test_btn);
+        test.getViewTreeObserver().addOnDrawListener(new ViewTreeObserver.OnDrawListener() {
+            @Override
+            public void onDraw() {
+                Log.e("onDraw", String.valueOf(test.getVisibility()));
+            }
+        });
+        test.isShown();
+//        test.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+//            @Override
+//            public boolean onPreDraw() {
+//                Log.e("onPreDraw", String.valueOf(test.getVisibility()));
+//                return false;
+//            }
+//        });
     }
 
     public static Activity getThis() {
@@ -44,8 +65,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
+            case R.id.test_btn:
+                v.setVisibility(View.GONE);
+                break;
             case R.id.openLog:
-                ARouter.openLog();
+                findViewById(R.id.test_btn).setVisibility(View.VISIBLE);
+//                ARouter.openLog();
                 break;
             case R.id.openDebug:
                 ARouter.openDebug();
