@@ -42,13 +42,14 @@ import java.util.concurrent.ThreadPoolExecutor;
  * @since 16/8/16 14:39
  */
 final class _ARouter {
-    static ILogger logger = new DefaultLogger(Consts.TAG); // 日志工具
+    static ILogger logger = new DefaultLogger(Consts.TAG);
     private volatile static boolean monitorMode = false;
     private volatile static boolean debuggable = false;
     private volatile static boolean autoInject = false;
     private volatile static _ARouter instance = null;
     private volatile static boolean hasInit = false;
     private volatile static ThreadPoolExecutor executor = DefaultPoolExecutor.getInstance();
+    private static Handler mHandler;
     private static Context mContext;
 
     private static InterceptorService interceptorService;
@@ -61,11 +62,8 @@ final class _ARouter {
         LogisticsCenter.init(mContext, executor);
         logger.info(Consts.TAG, "ARouter init success!");
         hasInit = true;
+        mHandler = new Handler(Looper.getMainLooper());
 
-        // It's not a good idea.
-        // if (Build.VERSION.SDK_INT > Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
-        //     application.registerActivityLifecycleCallbacks(new AutowiredLifecycleCallback());
-        // }
         return true;
     }
 
@@ -251,8 +249,14 @@ final class _ARouter {
             Postcard postcard = LogisticsCenter.buildProvider(service.getName());
 
             // Compatible 1.0.5 compiler sdk.
-            if (null == postcard) { // No service, or this service in old version.
+            // Earlier versions did not use the fully qualified name to get the service
+            if (null == postcard) {
+                // No service, or this service in old version.
                 postcard = LogisticsCenter.buildProvider(service.getSimpleName());
+            }
+
+            if (null == postcard) {
+                return null;
             }
 
             LogisticsCenter.completion(postcard);
@@ -277,10 +281,16 @@ final class _ARouter {
         } catch (NoRouteFoundException ex) {
             logger.warning(Consts.TAG, ex.getMessage());
 
-            if (debuggable()) { // Show friendly tips for user.
-                Toast.makeText(mContext, "There's no route matched!\n" +
-                        " Path = [" + postcard.getPath() + "]\n" +
-                        " Group = [" + postcard.getGroup() + "]", Toast.LENGTH_LONG).show();
+            if (debuggable()) {
+                // Show friendly tips for user.
+                runInMainThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(mContext, "There's no route matched!\n" +
+                                " Path = [" + postcard.getPath() + "]\n" +
+                                " Group = [" + postcard.getGroup() + "]", Toast.LENGTH_LONG).show();
+                    }
+                });
             }
 
             if (null != callback) {
@@ -349,23 +359,17 @@ final class _ARouter {
                     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 }
 
+                // Set Actions
+                String action = postcard.getAction();
+                if (!TextUtils.isEmpty(action)) {
+                    intent.setAction(action);
+                }
+
                 // Navigation in main looper.
-                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                runInMainThread(new Runnable() {
                     @Override
                     public void run() {
-                        if (requestCode > 0) {  // Need start for result
-                            ActivityCompat.startActivityForResult((Activity) currentContext, intent, requestCode, postcard.getOptionsBundle());
-                        } else {
-                            ActivityCompat.startActivity(currentContext, intent, postcard.getOptionsBundle());
-                        }
-
-                        if ((0 != postcard.getEnterAnim() || 0 != postcard.getExitAnim()) && currentContext instanceof Activity) {    // Old version.
-                            ((Activity) currentContext).overridePendingTransition(postcard.getEnterAnim(), postcard.getExitAnim());
-                        }
-
-                        if (null != callback) { // Navigation over.
-                            callback.onArrival(postcard);
-                        }
+                        startActivity(requestCode, currentContext, intent, postcard, callback);
                     }
                 });
 
@@ -395,5 +399,42 @@ final class _ARouter {
         }
 
         return null;
+    }
+
+    /**
+     * Be sure execute in main thread.
+     *
+     * @param runnable code
+     */
+    private void runInMainThread(Runnable runnable) {
+        if (Looper.getMainLooper().getThread() != Thread.currentThread()) {
+            mHandler.post(runnable);
+        } else {
+            runnable.run();
+        }
+    }
+
+    /**
+     * Start activity
+     * @see ActivityCompat
+     */
+    private void startActivity(int requestCode, Context currentContext, Intent intent, Postcard postcard, NavigationCallback callback) {
+        if (requestCode >= 0) {  // Need start for result
+            if (currentContext instanceof Activity) {
+                ActivityCompat.startActivityForResult((Activity) currentContext, intent, requestCode, postcard.getOptionsBundle());
+            } else {
+                logger.warning(Consts.TAG, "Must use [navigation(activity, ...)] to support [startActivityForResult]");
+            }
+        } else {
+            ActivityCompat.startActivity(currentContext, intent, postcard.getOptionsBundle());
+        }
+
+        if ((-1 != postcard.getEnterAnim() && -1 != postcard.getExitAnim()) && currentContext instanceof Activity) {    // Old version.
+            ((Activity) currentContext).overridePendingTransition(postcard.getEnterAnim(), postcard.getExitAnim());
+        }
+
+        if (null != callback) { // Navigation over.
+            callback.onArrival(postcard);
+        }
     }
 }

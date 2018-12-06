@@ -18,7 +18,7 @@ android {
 
         javaCompileOptions {
             annotationProcessorOptions {
-                arguments = [ moduleName : project.getName() ]
+                arguments = [AROUTER_MODULE_NAME: project.getName()]
             }
         }
     }
@@ -39,10 +39,10 @@ android {
 }
 
 dependencies {
-    annotationProcessor 'com.alibaba:arouter-compiler:1.0.3'
-    compile 'com.alibaba:arouter-annotation:1.0.3'
+    annotationProcessor 'com.alibaba:arouter-compiler:1.2.0'
+    compile 'com.alibaba:arouter-annotation:1.0.6'
     compile "com.android.support:support-v4:${SUPPORT_LIB_VERSION}"
 }
 
-apply from: 'https://raw.githubusercontent.com/nuuneoi/JCenter/master/installv1.gradle'
-apply from: 'https://raw.githubusercontent.com/nuuneoi/JCenter/master/bintrayv1.gradle'
+apply from: '../install.gradle'
+apply from: '../bintray.gradle'
